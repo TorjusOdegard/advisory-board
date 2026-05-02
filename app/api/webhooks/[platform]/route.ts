@@ -11,10 +11,24 @@ export async function POST(
   const { platform } = await context.params
 
   const { summary, jsonBody } = await summarizeIncomingRequest(request)
+  
+  // Log full payload for debugging
+  const requestClone = request.clone()
+  const bodyText = await requestClone.text()
+  
+  console.log(`[${platform}] Incoming webhook:`, {
+    headers: Object.fromEntries(request.headers.entries()),
+    bodyText: bodyText.slice(0, 500), // First 500 chars
+    contentType: request.headers.get('content-type'),
+    summary,
+    jsonBody
+  })
+  
   addChatLogEntry({
     platform,
     kind: "incoming",
     ...summary,
+    detail: `Body: ${bodyText.slice(0, 200)}...`
   })
 
   // Slack URL verification (JSON only)
