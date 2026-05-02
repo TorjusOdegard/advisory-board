@@ -1,7 +1,8 @@
 import { chunkText, storeKnowledge } from "./upstash-store"
 import { addKnowledgeSource } from "../advisors/store"
 
-const BRIGHTDATA_API_URL = "https://api.brightdata.com/mcp"
+// Brightdata MCP API  
+const BRIGHTDATA_MCP_URL = `https://mcp.brightdata.com/mcp?token=${process.env.BRIGHTDATA_API_KEY}`
 
 interface ScrapeResult {
   url: string
@@ -15,15 +16,11 @@ interface DiscoverResult {
   urls: string[]
 }
 
-async function callBrightDataMCP<T>(
-  tool: string,
-  params: Record<string, unknown>
-): Promise<T> {
-  const response = await fetch(BRIGHTDATA_API_URL, {
+async function callBrightDataMCP(tool: string, params: Record<string, unknown>): Promise<any> {
+  const response = await fetch(BRIGHTDATA_MCP_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.BRIGHTDATA_API_KEY}`,
     },
     body: JSON.stringify({
       tool,
@@ -32,23 +29,20 @@ async function callBrightDataMCP<T>(
   })
 
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Bright Data MCP error: ${error}`)
+    const errorText = await response.text()
+    throw new Error(`Brightdata MCP error (${response.status}): ${errorText}`)
   }
 
-  return response.json() as Promise<T>
+  return response.json()
 }
 
 export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   try {
-    const result = await callBrightDataMCP<{ markdown: string; title?: string }>(
-      "scrape_as_markdown",
-      { url }
-    )
+    const result = await callBrightDataMCP("scrape_as_markdown", { url })
 
     return {
       url,
-      markdown: result.markdown,
+      markdown: result.markdown || result.content || "",
       title: result.title,
       success: true,
     }
@@ -63,16 +57,25 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
 }
 
 export async function scrapeMultipleUrls(urls: string[]): Promise<ScrapeResult[]> {
-  try {
-    const result = await callBrightDataMCP<{ results: ScrapeResult[] }>(
-      "scrape_batch",
-      { urls }
-    )
-    return result.results
-  } catch (error) {
-    // Fall back to individual scraping
-    return Promise.all(urls.map(scrapeUrl))
+  // For now, scrape individually - can be optimized later with batch API
+  const results = []
+  for (const url of urls) {
+    try {
+      const result = await scrapeUrl(url)
+      results.push(result)
+      // Small delay to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 100))
+    } catch (error) {
+      console.error(`Failed to scrape ${url}:`, error)
+      results.push({
+        url,
+        markdown: "",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error"
+      })
+    }
   }
+  return results
 }
 
 export async function discoverUrls(
@@ -80,12 +83,12 @@ export async function discoverUrls(
   description: string
 ): Promise<string[]> {
   try {
-    const result = await callBrightDataMCP<DiscoverResult>("discover", {
+    const result = await callBrightDataMCP("discover", {
       url: baseUrl,
       description,
       max_urls: 50,
     })
-    return result.urls
+    return result.urls || [baseUrl]
   } catch (error) {
     console.error("Failed to discover URLs:", error)
     return [baseUrl] // Fall back to just the base URL
