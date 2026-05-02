@@ -47,10 +47,18 @@ function redisUrlForChatState(): string | null {
 function createState() {
   const url = redisUrlForChatState()
   if (url) {
-    return createRedisState({ url })
+    try {
+      return createRedisState({ url })
+    } catch (error) {
+      console.warn('Failed to create Redis state, falling back to memory:', error)
+    }
   }
   return createMemoryState()
 }
+
+const slackEnvReady =
+  Boolean(process.env.SLACK_BOT_TOKEN) &&
+  Boolean(process.env.SLACK_SIGNING_SECRET)
 
 const discordEnvReady =
   Boolean(process.env.DISCORD_BOT_TOKEN) &&
@@ -59,10 +67,14 @@ const discordEnvReady =
 export const bot = new Chat({
   userName: "advisoryboard",
   adapters: {
-    slack: createSlackAdapter({
-      botToken: process.env.SLACK_BOT_TOKEN!,
-      signingSecret: process.env.SLACK_SIGNING_SECRET!,
-    }),
+    ...(slackEnvReady
+      ? {
+          slack: createSlackAdapter({
+            botToken: process.env.SLACK_BOT_TOKEN!,
+            signingSecret: process.env.SLACK_SIGNING_SECRET!,
+          }),
+        }
+      : {}),
     ...(discordEnvReady
       ? {
           discord: createDiscordAdapter({
