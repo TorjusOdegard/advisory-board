@@ -10,11 +10,13 @@ export async function GET() {
       slackSecret: !!process.env.SLACK_SIGNING_SECRET,
       redisUrl: !!process.env.KV_REST_API_URL,
       redisToken: !!process.env.KV_REST_API_TOKEN,
-      upstashUrl: !!process.env.UPSTASH_REDIS_REST_URL,
-      upstashToken: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+      upstashRedisUrl: !!process.env.UPSTASH_REDIS_REST_URL,
+      upstashRedisToken: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+      upstashVectorUrl: !!process.env.UPSTASH_VECTOR_REST_URL,
+      upstashVectorToken: !!process.env.UPSTASH_VECTOR_REST_TOKEN,
       aiGatewayKey: !!process.env.AI_GATEWAY_API_KEY,
       aiGatewayModel: !!process.env.AI_GATEWAY_MODEL,
-      mubitKey: !!process.env.MUBIT_API_KEY
+      brightdataKey: !!process.env.BRIGHTDATA_API_KEY
     },
     envValues: {
       slackTokenPrefix: process.env.SLACK_BOT_TOKEN?.slice(0, 10) + "...",
