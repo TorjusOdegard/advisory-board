@@ -1,4 +1,4 @@
-import { chunkText, storeKnowledge } from "./upstash-store"
+import { chunkText, storeKnowledge } from "./mubit-store"
 import { addKnowledgeSource } from "../advisors/store"
 
 // Brightdata Web Unlocker API - Direct REST API approach
