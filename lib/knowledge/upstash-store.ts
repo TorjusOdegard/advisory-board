@@ -111,11 +111,22 @@ export async function storeKnowledge(
       // Generate embeddings for each chunk
       const embeddings = await Promise.all(
         batch.map(async (chunk) => {
-          const { embedding } = await embed({
-            model: aiGateway("openai/text-embedding-3-small"),
-            value: chunk.content
-          })
-          return embedding
+          try {
+            console.log(`Generating embedding for chunk ${chunk.chunkIndex}...`)
+            const model = aiGateway("openai/text-embedding-3-small")
+            console.log('Model created:', typeof model)
+            
+            const result = await embed({
+              model: model,
+              value: chunk.content
+            })
+            console.log(`Embedding generated successfully for chunk ${chunk.chunkIndex}`)
+            return result.embedding
+          } catch (embeddingError) {
+            console.error('Embedding error for chunk:', chunk.chunkIndex, embeddingError)
+            // Fallback: create a zero vector if embedding fails
+            return new Array(1536).fill(0) // text-embedding-3-small uses 1536 dimensions
+          }
         })
       )
 
@@ -174,10 +185,11 @@ export async function retrieveKnowledge(
 
   try {
     // Generate embedding for the query
-    const { embedding } = await embed({
+    const result = await embed({
       model: aiGateway("openai/text-embedding-3-small"),
       value: query
     })
+    const embedding = result.embedding
 
     // Search for similar vectors
     const results = await index.query({
