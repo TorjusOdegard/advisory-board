@@ -9,7 +9,9 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@chat-adapter/discord": "^4.27.0",
     "@chat-adapter/slack": "^4.27.0",
+    "@chat-adapter/state-memory": "^4.27.0",
     "@chat-adapter/state-redis": "^4.27.0",
     "@hookform/resolvers": "^3.9.1",
     "@mubit-ai/ai-sdk": "^0.6.0",
@@ -65,6 +67,7 @@
     "swr": "^2.4.1",
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
+    "zlib-sync": "^0.1.10",
     "zod": "^3.24.1"
   },
   "devDependencies": {

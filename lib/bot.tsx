@@ -8,9 +8,12 @@ import {
   Divider,
   Fields,
   Field,
+  emoji,
 } from "chat"
 import { createSlackAdapter } from "@chat-adapter/slack"
+import { createDiscordAdapter } from "@chat-adapter/discord"
 import { createRedisState } from "@chat-adapter/state-redis"
+import { createMemoryState } from "@chat-adapter/state-memory"
 import {
   createAdvisor,
   getAdvisor,
@@ -19,7 +22,39 @@ import {
 } from "./advisors/store"
 import { ingestKnowledgeForAdvisor } from "./knowledge/scraper"
 import { generateAdvisorResponse, recordAdvisorInteraction } from "./agent/advisor-agent"
-import { reflectOnSession } from "./knowledge/mubit-store"
+function redisUrlForChatState(): string | null {
+  const direct = process.env.REDIS_URL
+  if (direct) return direct
+
+  const restOrTcp = process.env.KV_REST_API_URL
+  const token = process.env.KV_REST_API_TOKEN
+  if (!restOrTcp) return null
+  if (restOrTcp.startsWith("redis://") || restOrTcp.startsWith("rediss://")) {
+    return restOrTcp
+  }
+  if (!token) return null
+  try {
+    const u = new URL(restOrTcp)
+    if (u.hostname.includes("upstash.io")) {
+      return `rediss://default:${encodeURIComponent(token)}@${u.hostname}:6379`
+    }
+  } catch {
+    /* not a URL */
+  }
+  return null
+}
+
+function createState() {
+  const url = redisUrlForChatState()
+  if (url) {
+    return createRedisState({ url })
+  }
+  return createMemoryState()
+}
+
+const discordEnvReady =
+  Boolean(process.env.DISCORD_BOT_TOKEN) &&
+  Boolean(process.env.DISCORD_PUBLIC_KEY)
 
 export const bot = new Chat({
   userName: "advisoryboard",
@@ -28,11 +63,17 @@ export const bot = new Chat({
       botToken: process.env.SLACK_BOT_TOKEN!,
       signingSecret: process.env.SLACK_SIGNING_SECRET!,
     }),
+    ...(discordEnvReady
+      ? {
+          discord: createDiscordAdapter({
+            botToken: process.env.DISCORD_BOT_TOKEN,
+            publicKey: process.env.DISCORD_PUBLIC_KEY,
+            applicationId: process.env.DISCORD_APPLICATION_ID,
+          }),
+        }
+      : {}),
   },
-  state: createRedisState({
-    url: process.env.KV_REST_API_URL!,
-    token: process.env.KV_REST_API_TOKEN!,
-  }),
+  state: createState(),
 })
 
 // Parse slash command arguments
@@ -381,6 +422,29 @@ bot.onAction("cancel-remove", async (event) => {
   await event.thread.post(
     <Card title="Cancelled">
       <CardText>Advisor removal cancelled.</CardText>
+    </Card>
+  )
+})
+
+// Follow-ups in threads the bot already subscribed to (e.g. after an @mention)
+bot.onSubscribedMessage(async (thread, message) => {
+  if (message.author.isMe) return
+  if (!message.isMention) return
+
+  await thread.post(
+    <Card title="Advisory Board">
+      <CardText>
+        In this thread, use `/board` commands: `list`, `ask`, `add`, `ingest`, `remove`.
+      </CardText>
+    </Card>
+  )
+})
+
+bot.onReaction([emoji.thumbs_up], async (event) => {
+  if (!event.added) return
+  await event.thread.post(
+    <Card title="Thanks">
+      <CardText>Glad that helped.</CardText>
     </Card>
   )
 })

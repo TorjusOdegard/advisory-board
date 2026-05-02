@@ -1,4 +1,4 @@
-import { streamText, tool, wrapLanguageModel } from "ai"
+import { createGateway, streamText, tool, wrapLanguageModel } from "ai"
 import { mubitMemoryMiddleware } from "@mubit-ai/ai-sdk"
 import { z } from "zod"
 import type { Advisor } from "../advisors/types"
@@ -9,7 +9,19 @@ import {
   recordOutcome,
 } from "../knowledge/mubit-store"
 
-const BASE_MODEL = "anthropic/claude-sonnet-4-20250514"
+/**
+ * Model id from the AI Gateway catalog (`provider/model-name`).
+ * Browse: https://vercel.com/ai-gateway/models — override with `AI_GATEWAY_MODEL`.
+ */
+const GATEWAY_MODEL_ID =
+  process.env.AI_GATEWAY_MODEL ?? "anthropic/claude-sonnet-4.6"
+
+const aiGateway = createGateway({
+  apiKey:
+    process.env.AI_GATEWAY_API_KEY ??
+    process.env.VERCEL_OIDC_TOKEN ??
+    "",
+})
 
 interface ConversationMessage {
   role: "user" | "assistant"
@@ -22,7 +34,7 @@ interface ConversationMessage {
  */
 function createAdvisorModel(advisorId: string) {
   return wrapLanguageModel({
-    model: BASE_MODEL,
+    model: aiGateway(GATEWAY_MODEL_ID),
     middleware: mubitMemoryMiddleware({
       apiKey: process.env.MUBIT_API_KEY,
       sessionId: `advisor:${advisorId}`,

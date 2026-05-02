@@ -279,6 +279,14 @@ function SetupGuide() {
                   <span className="text-foreground">...</span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">AI_GATEWAY_API_KEY=</span>
+                  <span className="text-foreground">vck_...</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">AI_GATEWAY_MODEL=</span>
+                  <span className="text-foreground">anthropic/claude-sonnet-4.6</span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">KV_REST_API_URL=</span>
                   <span className="text-foreground">https://...</span>
                 </div>
