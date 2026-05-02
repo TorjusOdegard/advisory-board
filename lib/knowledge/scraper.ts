@@ -85,7 +85,7 @@ async function callBrightDataAPI(url: string): Promise<{ content: string; title?
     const html = await response.text()
     
     // Extract title
-    const titleMatch = html.match(/<title[^>]*>([^<]+)</title>/i)
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
     const title = titleMatch ? titleMatch[1].trim() : undefined
 
     // Simple HTML to text conversion
