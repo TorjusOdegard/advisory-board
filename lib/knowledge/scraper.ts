@@ -4,6 +4,44 @@ import { addKnowledgeSource } from "../advisors/store"
 // Brightdata MCP API  
 const BRIGHTDATA_MCP_URL = `https://mcp.brightdata.com/mcp?token=${process.env.BRIGHTDATA_API_KEY}`
 
+let sessionId: string | null = null
+
+async function initializeBrightDataSession(): Promise<string> {
+  if (sessionId) return sessionId
+  
+  const response = await fetch(BRIGHTDATA_MCP_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {
+          tools: {}
+        },
+        clientInfo: {
+          name: "advisory-board",
+          version: "1.0.0"
+        }
+      },
+      id: 1,
+    }),
+  })
+
+  const data = await response.json()
+  
+  if (data.error) {
+    throw new Error(`Failed to initialize Brightdata session: ${data.error.message}`)
+  }
+  
+  // Generate a session ID (some MCPs require this)
+  sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  return sessionId
+}
+
 interface ScrapeResult {
   url: string
   markdown: string
@@ -17,15 +55,22 @@ interface DiscoverResult {
 }
 
 async function callBrightDataMCP(method: string, params: Record<string, unknown>): Promise<any> {
+  // Initialize session if needed
+  const currentSessionId = await initializeBrightDataSession()
+  
   const response = await fetch(BRIGHTDATA_MCP_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "X-Session-ID": currentSessionId, // Add session ID as header
     },
     body: JSON.stringify({
       jsonrpc: "2.0",
       method: `tools/${method}`,
-      params,
+      params: {
+        ...params,
+        _sessionId: currentSessionId, // Also try as parameter
+      },
       id: Date.now(),
     }),
   })
