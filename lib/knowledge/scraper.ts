@@ -1,47 +1,8 @@
 import { chunkText, storeKnowledge } from "./upstash-store"
 import { addKnowledgeSource } from "../advisors/store"
 
-// Brightdata MCP API  
-const BRIGHTDATA_MCP_URL = `https://mcp.brightdata.com/mcp?token=${process.env.BRIGHTDATA_API_KEY}`
-
-let sessionId: string | null = null
-
-async function initializeBrightDataSession(): Promise<string> {
-  if (sessionId) return sessionId
-  
-  const response = await fetch(BRIGHTDATA_MCP_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json, text/event-stream", // Required by MCP
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "initialize",
-      params: {
-        protocolVersion: "2024-11-05",
-        capabilities: {
-          tools: {}
-        },
-        clientInfo: {
-          name: "advisory-board",
-          version: "1.0.0"
-        }
-      },
-      id: 1,
-    }),
-  })
-
-  const data = await response.json()
-  
-  if (data.error) {
-    throw new Error(`Failed to initialize Brightdata session: ${data.error.message}`)
-  }
-  
-  // Extract session ID from response or generate one
-  sessionId = data.result?.sessionId || data.sessionId || `session_${Date.now()}_${Math.random().toString(36).slice(2)}`
-  return sessionId
-}
+// Brightdata Web Unlocker API - Direct REST API approach
+const BRIGHTDATA_API_BASE = "https://api.brightdata.com"
 
 interface ScrapeResult {
   url: string
@@ -55,49 +16,51 @@ interface DiscoverResult {
   urls: string[]
 }
 
-async function callBrightDataMCP(method: string, params: Record<string, unknown>): Promise<any> {
-  // Initialize session if needed
-  const currentSessionId = await initializeBrightDataSession()
+// Use Brightdata Web Unlocker API directly
+async function callBrightDataAPI(url: string): Promise<{ content: string; title?: string }> {
+  const API_TOKEN = process.env.BRIGHTDATA_API_KEY
   
-  const response = await fetch(BRIGHTDATA_MCP_URL, {
+  if (!API_TOKEN) {
+    throw new Error("BRIGHTDATA_API_KEY not configured")
+  }
+
+  // Use Web Unlocker API for scraping
+  const response = await fetch(`${BRIGHTDATA_API_BASE}/web_unlocker/scrape`, {
     method: "POST",
     headers: {
+      "Authorization": `Bearer ${API_TOKEN}`,
       "Content-Type": "application/json",
-      "Accept": "application/json, text/event-stream", // Required by MCP
-      "X-Session-ID": currentSessionId, // Add session ID as header
     },
     body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: `tools/${method}`,
-      params: {
-        ...params,
-        sessionId: currentSessionId, // Add session ID as parameter
-      },
-      id: Date.now(),
+      url,
+      response_format: "markdown",
+      include_raw_html: false,
+      include_links: false,
+      wait_for: "domcontentloaded",
+      render: "html"
     }),
   })
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`Brightdata MCP error (${response.status}): ${errorText}`)
+    throw new Error(`Brightdata API error (${response.status}): ${errorText}`)
   }
 
   const data = await response.json()
   
-  if (data.error) {
-    throw new Error(`Brightdata MCP error: ${data.error.message}`)
+  return {
+    content: data.markdown || data.content || "",
+    title: data.title
   }
-
-  return data.result
 }
 
 export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   try {
-    const result = await callBrightDataMCP("scrape_as_markdown", { url })
+    const result = await callBrightDataAPI(url)
 
     return {
       url,
-      markdown: result.markdown || result.content || "",
+      markdown: result.content,
       title: result.title,
       success: true,
     }
@@ -138,12 +101,22 @@ export async function discoverUrls(
   description: string
 ): Promise<string[]> {
   try {
-    const result = await callBrightDataMCP("discover", {
-      url: baseUrl,
-      description,
-      max_urls: 50,
-    })
-    return result.urls || [baseUrl]
+    // For now, use simple discovery by scraping the base URL and extracting links
+    const result = await callBrightDataAPI(baseUrl)
+    
+    // Simple link extraction from markdown (basic implementation)
+    const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g
+    const urls = [baseUrl]
+    let match
+    
+    while ((match = linkPattern.exec(result.content)) !== null) {
+      const linkUrl = match[2]
+      if (linkUrl.startsWith('http') && urls.length < 10) { // Limit to 10 URLs
+        urls.push(linkUrl)
+      }
+    }
+    
+    return urls
   } catch (error) {
     console.error("Failed to discover URLs:", error)
     return [baseUrl] // Fall back to just the base URL
