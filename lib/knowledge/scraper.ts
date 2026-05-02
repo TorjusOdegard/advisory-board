@@ -24,33 +24,87 @@ async function callBrightDataAPI(url: string): Promise<{ content: string; title?
     throw new Error("BRIGHTDATA_API_KEY not configured")
   }
 
-  // Use Web Unlocker API for scraping
-  const response = await fetch(`${BRIGHTDATA_API_BASE}/web_unlocker/scrape`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${API_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      url,
-      response_format: "markdown",
-      include_raw_html: false,
-      include_links: false,
-      wait_for: "domcontentloaded",
-      render: "html"
-    }),
-  })
+  // Try multiple possible API endpoints
+  const endpoints = [
+    `${BRIGHTDATA_API_BASE}/web_unlocker/scrape`,
+    `${BRIGHTDATA_API_BASE}/web-unlocker/scrape`, 
+    `${BRIGHTDATA_API_BASE}/scraper/scrape`,
+    `${BRIGHTDATA_API_BASE}/serp/scrape`,
+    // Fallback to direct proxy request if API endpoints don't work
+  ]
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Brightdata API error (${response.status}): ${errorText}`)
+  let lastError = ""
+  
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+          response_format: "markdown",
+          include_raw_html: false,
+          include_links: false,
+          wait_for: "domcontentloaded",
+          render: "html"
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          content: data.markdown || data.content || data.html || "",
+          title: data.title
+        }
+      } else {
+        lastError = `${endpoint}: ${response.status} ${await response.text()}`
+        console.log(`Failed endpoint ${endpoint}: ${response.status}`)
+      }
+    } catch (error) {
+      lastError = `${endpoint}: ${error instanceof Error ? error.message : "Unknown error"}`
+      console.log(`Error with endpoint ${endpoint}:`, error)
+    }
   }
 
-  const data = await response.json()
-  
-  return {
-    content: data.markdown || data.content || "",
-    title: data.title
+  // If all API endpoints fail, try a simple fetch as fallback
+  console.log("All Brightdata endpoints failed, trying simple fetch...")
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Advisory Board Bot/1.0)'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status}`)
+    }
+
+    const html = await response.text()
+    
+    // Extract title
+    const titleMatch = html.match(/<title[^>]*>([^<]+)</title>/i)
+    const title = titleMatch ? titleMatch[1].trim() : undefined
+
+    // Simple HTML to text conversion
+    let content = html
+      .replace(/<script[^>]*>.*?<\/script>/gis, '')
+      .replace(/<style[^>]*>.*?<\/style>/gis, '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    return { content, title }
+  } catch (error) {
+    throw new Error(`All scraping methods failed. Last Brightdata error: ${lastError}. Fallback error: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
 
