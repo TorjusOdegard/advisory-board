@@ -34,6 +34,7 @@ export async function POST(request: Request) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
           },
           body: JSON.stringify(payload),
         })

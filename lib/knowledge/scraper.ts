@@ -13,6 +13,7 @@ async function initializeBrightDataSession(): Promise<string> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Accept": "application/json, text/event-stream", // Required by MCP
     },
     body: JSON.stringify({
       jsonrpc: "2.0",
@@ -37,8 +38,8 @@ async function initializeBrightDataSession(): Promise<string> {
     throw new Error(`Failed to initialize Brightdata session: ${data.error.message}`)
   }
   
-  // Generate a session ID (some MCPs require this)
-  sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  // Extract session ID from response or generate one
+  sessionId = data.result?.sessionId || data.sessionId || `session_${Date.now()}_${Math.random().toString(36).slice(2)}`
   return sessionId
 }
 
@@ -62,6 +63,7 @@ async function callBrightDataMCP(method: string, params: Record<string, unknown>
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Accept": "application/json, text/event-stream", // Required by MCP
       "X-Session-ID": currentSessionId, // Add session ID as header
     },
     body: JSON.stringify({
@@ -69,7 +71,7 @@ async function callBrightDataMCP(method: string, params: Record<string, unknown>
       method: `tools/${method}`,
       params: {
         ...params,
-        _sessionId: currentSessionId, // Also try as parameter
+        sessionId: currentSessionId, // Add session ID as parameter
       },
       id: Date.now(),
     }),
