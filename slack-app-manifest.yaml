@@ -1,0 +1,58 @@
+display_information:
+  name: Advisory Board
+  description: Build your personal AI advisory board with virtual personas based on legendary founders and investors
+  background_color: "#1a1a1a"
+  long_description: Get advice from virtual personas of legendary founders like Paul Graham, Ben Horowitz, and more. Create advisors, ingest their knowledge from URLs, and ask them questions directly in Slack.
+
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: true
+  bot_user:
+    display_name: Advisory Board
+    always_online: true
+  slash_commands:
+    - command: /board
+      url: https://v0-slack-bot-advisory-board.vercel.app/api/webhooks/slack
+      description: Manage your AI advisory board
+      usage_hint: "list | add \"Name\" [url] | ask advisorId \"question\" | remove advisorId"
+      should_escape: false
+
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - channels:read
+      - chat:write
+      - commands
+      - groups:history
+      - groups:read
+      - im:history
+      - im:read
+      - im:write
+      - mpim:history
+      - mpim:read
+      - mpim:write
+      - reactions:read
+      - reactions:write
+      - users:read
+  redirect_urls:
+    - https://v0-slack-bot-advisory-board.vercel.app/oauth/redirect
+
+settings:
+  event_subscriptions:
+    request_url: https://v0-slack-bot-advisory-board.vercel.app/api/webhooks/slack
+    bot_events:
+      - app_mention
+      - message.channels
+      - message.groups
+      - message.im
+      - message.mpim
+      - reaction_added
+  interactivity:
+    is_enabled: true
+    request_url: https://v0-slack-bot-advisory-board.vercel.app/api/webhooks/slack
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

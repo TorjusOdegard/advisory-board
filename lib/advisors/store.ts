@@ -1,12 +1,38 @@
 import { Redis } from "@upstash/redis"
 import type { Advisor, AdvisorCreateInput } from "./types"
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
-
 const ADVISORS_KEY = "advisory-board:advisors"
+
+function kvConfigured(): boolean {
+  return Boolean(
+    process.env.KV_REST_API_URL?.trim() && process.env.KV_REST_API_TOKEN?.trim()
+  )
+}
+
+let redis: Redis | null = null
+function getRedis(): Redis | null {
+  if (!kvConfigured()) return null
+  if (!redis) {
+    redis = new Redis({
+      url: process.env.KV_REST_API_URL!,
+      token: process.env.KV_REST_API_TOKEN!,
+    })
+  }
+  return redis
+}
+
+/** In-process fallback when Upstash env is not set (not durable on serverless). */
+const memoryById = new Map<string, Advisor>()
+let loggedMemoryFallback = false
+
+function ensureMemoryModeLogged() {
+  if (!loggedMemoryFallback && !kvConfigured()) {
+    loggedMemoryFallback = true
+    console.warn(
+      "[advisors/store] KV_REST_API_URL / KV_REST_API_TOKEN not set — using in-memory advisor storage (data resets between cold starts). Set Upstash keys on Vercel for persistence."
+    )
+  }
+}
 
 function slugify(name: string): string {
   return name
@@ -29,25 +55,46 @@ export async function createAdvisor(input: AdvisorCreateInput): Promise<Advisor>
     updatedAt: now,
   }
 
-  await redis.hset(ADVISORS_KEY, { [id]: JSON.stringify(advisor) })
+  const r = getRedis()
+  if (r) {
+    await r.hset(ADVISORS_KEY, { [id]: JSON.stringify(advisor) })
+  } else {
+    ensureMemoryModeLogged()
+    memoryById.set(id, advisor)
+  }
   return advisor
 }
 
 export async function getAdvisor(id: string): Promise<Advisor | null> {
-  const data = await redis.hget<string>(ADVISORS_KEY, id)
-  if (!data) return null
-  return JSON.parse(data) as Advisor
+  const r = getRedis()
+  if (r) {
+    const data = await r.hget<string>(ADVISORS_KEY, id)
+    if (!data) return null
+    return JSON.parse(data) as Advisor
+  }
+  ensureMemoryModeLogged()
+  return memoryById.get(id) ?? null
 }
 
 export async function listAdvisors(): Promise<Advisor[]> {
-  const data = await redis.hgetall<Record<string, string>>(ADVISORS_KEY)
-  if (!data) return []
-  return Object.values(data).map((json) => JSON.parse(json) as Advisor)
+  const r = getRedis()
+  if (r) {
+    const data = await r.hgetall<Record<string, string>>(ADVISORS_KEY)
+    if (!data) return []
+    return Object.values(data).map((json) => JSON.parse(json) as Advisor)
+  }
+  ensureMemoryModeLogged()
+  return Array.from(memoryById.values())
 }
 
 export async function deleteAdvisor(id: string): Promise<boolean> {
-  const result = await redis.hdel(ADVISORS_KEY, id)
-  return result > 0
+  const r = getRedis()
+  if (r) {
+    const result = await r.hdel(ADVISORS_KEY, id)
+    return result > 0
+  }
+  ensureMemoryModeLogged()
+  return memoryById.delete(id)
 }
 
 export async function updateAdvisor(id: string, updates: Partial<Advisor>): Promise<Advisor | null> {
@@ -57,11 +104,17 @@ export async function updateAdvisor(id: string, updates: Partial<Advisor>): Prom
   const updated: Advisor = {
     ...existing,
     ...updates,
-    id: existing.id, // Prevent ID changes
+    id: existing.id,
     updatedAt: new Date().toISOString(),
   }
 
-  await redis.hset(ADVISORS_KEY, { [id]: JSON.stringify(updated) })
+  const r = getRedis()
+  if (r) {
+    await r.hset(ADVISORS_KEY, { [id]: JSON.stringify(updated) })
+  } else {
+    ensureMemoryModeLogged()
+    memoryById.set(id, updated)
+  }
   return updated
 }
 

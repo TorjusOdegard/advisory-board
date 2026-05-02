@@ -119,6 +119,7 @@ function parseCommand(text: string): { action: string; args: string[] } {
 
 // /board slash command handler
 bot.onSlashCommand("/board", async (event) => {
+  try {
   const { action, args } = parseCommand(event.text)
 
   switch (action) {
@@ -403,6 +404,19 @@ bot.onSlashCommand("/board", async (event) => {
         </Card>
       )
     }
+  }
+  } catch (error) {
+    console.error("[/board] command failed:", error)
+    await event.reply(
+      <Card title="Command failed">
+        <CardText>
+          {error instanceof Error ? error.message : "Unknown error"}
+          {"\n\n"}
+          Check Vercel logs. Common fixes: `SLACK_SIGNING_SECRET` / `SLACK_BOT_TOKEN` for this app,
+          and `KV_REST_API_URL` + `KV_REST_API_TOKEN` for persistent advisors.
+        </CardText>
+      </Card>
+    )
   }
 })
 

@@ -25,6 +25,18 @@ interface Advisor {
   updatedAt: string
 }
 
+interface ChatLogEntry {
+  id: string
+  timestamp: string
+  platform: string
+  kind: "incoming" | "response" | "error"
+  eventType?: string
+  command?: string
+  textPreview?: string
+  status?: number
+  detail?: string
+}
+
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 function StatCard({
@@ -332,7 +344,11 @@ function SetupGuide() {
 
 export default function DashboardPage() {
   const { data, error, mutate } = useSWR<{ advisors: Advisor[] }>("/api/advisors", fetcher)
+  const { data: logData } = useSWR<{ entries: ChatLogEntry[] }>("/api/chat-log?limit=25", fetcher, {
+    refreshInterval: 3000,
+  })
   const advisors = data?.advisors || []
+  const logEntries = logData?.entries || []
   const isLoading = !data && !error
 
   const totalSources = advisors.reduce((acc, a) => acc + a.knowledgeSources.length, 0)
@@ -437,6 +453,42 @@ export default function DashboardPage() {
           {/* Setup Guide */}
           <div className="space-y-4">
             <SetupGuide />
+            <Card className="border-border/50 bg-card/50">
+              <CardHeader>
+                <CardTitle className="text-base">Webhook / Chat Log</CardTitle>
+                <CardDescription>
+                  Recent inbound events from Slack/Discord to this deployment
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {logEntries.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No events yet. Trigger `/board list` in Slack to verify webhook traffic.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {logEntries.slice(0, 12).map((entry) => (
+                      <div key={entry.id} className="rounded-md border border-border/60 p-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium">
+                            {entry.platform} · {entry.kind}
+                            {typeof entry.status === "number" ? ` · ${entry.status}` : ""}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {new Date(entry.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-muted-foreground">
+                          {[entry.command, entry.eventType, entry.textPreview, entry.detail]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
