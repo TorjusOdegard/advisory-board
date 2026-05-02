@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { listAdvisors, createAdvisor, getAdvisor, deleteAdvisor } from "@/lib/advisors/store"
 import { ingestKnowledgeForAdvisor } from "@/lib/knowledge/scraper"
-import { deleteAdvisorKnowledge } from "@/lib/knowledge/vector-store"
 
 export async function GET() {
   try {
@@ -69,7 +68,7 @@ export async function DELETE(request: Request) {
       )
     }
 
-    await deleteAdvisorKnowledge(id)
+    // Note: Mubit memories persist - we're just removing from our advisor registry
     await deleteAdvisor(id)
 
     return NextResponse.json({ success: true })
