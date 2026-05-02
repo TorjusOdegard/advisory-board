@@ -1,5 +1,4 @@
-import { createGateway, streamText, tool, wrapLanguageModel } from "ai"
-import { mubitMemoryMiddleware } from "@mubit-ai/ai-sdk"
+import { createGateway, streamText, tool } from "ai"
 import { z } from "zod"
 import type { Advisor } from "../advisors/types"
 import {
@@ -7,7 +6,7 @@ import {
   getAdvisorContext,
   rememberInteraction,
   recordOutcome,
-} from "../knowledge/mubit-store"
+} from "../knowledge/upstash-store"
 
 /**
  * Model id from the AI Gateway catalog (`provider/model-name`).
@@ -29,18 +28,10 @@ interface ConversationMessage {
 }
 
 /**
- * Create a model wrapped with Mubit memory middleware for an advisor
- * This automatically injects lessons and captures interactions
+ * Get the AI Gateway model for advisor responses
  */
-function createAdvisorModel(advisorId: string) {
-  return wrapLanguageModel({
-    model: aiGateway(GATEWAY_MODEL_ID),
-    middleware: mubitMemoryMiddleware({
-      apiKey: process.env.MUBIT_API_KEY,
-      sessionId: `advisor:${advisorId}`,
-      agentId: advisorId,
-    }),
-  })
+function getAdvisorModel() {
+  return aiGateway(GATEWAY_MODEL_ID)
 }
 
 export async function generateAdvisorResponse(
@@ -48,12 +39,12 @@ export async function generateAdvisorResponse(
   question: string,
   conversationHistory: ConversationMessage[] = []
 ) {
-  // Get pre-assembled context from Mubit (includes lessons learned)
-  const mubitContext = await getAdvisorContext(advisor.id, question)
+  // Get relevant knowledge context from vector storage
+  const knowledgeContext = await getAdvisorContext(advisor.id, question)
 
-  // Build enhanced system prompt with Mubit context
-  const enhancedSystemPrompt = mubitContext
-    ? `${advisor.systemPrompt}\n\n---\nRelevant context from past interactions and lessons:\n${mubitContext}`
+  // Build enhanced system prompt with knowledge context
+  const enhancedSystemPrompt = knowledgeContext
+    ? `${advisor.systemPrompt}\n\n---\nRelevant knowledge from your writings and ideas:\n${knowledgeContext}`
     : advisor.systemPrompt
 
   // Build messages array
@@ -62,8 +53,8 @@ export async function generateAdvisorResponse(
     { role: "user" as const, content: question },
   ]
 
-  // Use model with Mubit middleware for automatic memory capture
-  const model = createAdvisorModel(advisor.id)
+  // Use the AI Gateway model directly
+  const model = getAdvisorModel()
 
   const result = streamText({
     model,
