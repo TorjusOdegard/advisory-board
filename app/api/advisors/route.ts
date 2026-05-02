@@ -4,8 +4,14 @@ import {
   createAdvisor,
   getAdvisor,
   deleteAdvisor,
+  initializeDefaultAdvisors,
 } from "@/lib/advisors/store"
 import { ingestKnowledgeForAdvisor } from "@/lib/knowledge/scraper"
+import { initializeAdvisorKnowledge } from "@/lib/knowledge/simple-store"
+
+// Initialize knowledge and default advisors when the module loads
+initializeAdvisorKnowledge()
+initializeDefaultAdvisors()
 
 export async function GET() {
   try {

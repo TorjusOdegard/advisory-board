@@ -197,6 +197,30 @@ export async function addKnowledgeSource(id: string, url: string): Promise<Advis
   return advisor
 }
 
+export async function initializeDefaultAdvisors(): Promise<void> {
+  const existing = await listAdvisors()
+  if (existing.length > 0) {
+    return // Already initialized
+  }
+
+  const defaultAdvisors = [
+    {
+      name: "Paul Graham",
+      description: "Co-founder of Y Combinator and Viaweb. Expert on startups, programming, and entrepreneurship.",
+    },
+    {
+      name: "Steve Jobs",
+      description: "Co-founder of Apple. Expert on product design, innovation, and company building.",
+    }
+  ]
+
+  for (const advisor of defaultAdvisors) {
+    await createAdvisor(advisor)
+  }
+  
+  console.log('Initialized default advisors:', defaultAdvisors.map(a => a.name).join(', '))
+}
+
 function generateSystemPrompt(name: string): string {
   return `You are ${name}, responding as a virtual advisor on a startup founder's advisory board.
 

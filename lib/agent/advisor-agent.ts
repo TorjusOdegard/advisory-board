@@ -6,7 +6,8 @@ import {
   getAdvisorContext,
   rememberInteraction,
   recordOutcome,
-} from "../knowledge/upstash-store"
+  initializeAdvisorKnowledge,
+} from "../knowledge/simple-store"
 
 /**
  * Model id from the AI Gateway catalog (`provider/model-name`).
