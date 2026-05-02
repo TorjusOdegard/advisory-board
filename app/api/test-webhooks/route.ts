@@ -10,13 +10,18 @@ export async function GET() {
       slackSecret: !!process.env.SLACK_SIGNING_SECRET,
       redisUrl: !!process.env.KV_REST_API_URL,
       redisToken: !!process.env.KV_REST_API_TOKEN,
+      upstashUrl: !!process.env.UPSTASH_REDIS_REST_URL,
+      upstashToken: !!process.env.UPSTASH_REDIS_REST_TOKEN,
       aiGatewayKey: !!process.env.AI_GATEWAY_API_KEY,
-      aiGatewayModel: !!process.env.AI_GATEWAY_MODEL
+      aiGatewayModel: !!process.env.AI_GATEWAY_MODEL,
+      mubitKey: !!process.env.MUBIT_API_KEY
     },
     envValues: {
       slackTokenPrefix: process.env.SLACK_BOT_TOKEN?.slice(0, 10) + "...",
       redisUrl: process.env.KV_REST_API_URL,
-      aiModel: process.env.AI_GATEWAY_MODEL
+      upstashUrl: process.env.UPSTASH_REDIS_REST_URL,
+      aiModel: process.env.AI_GATEWAY_MODEL,
+      usingAiGateway: process.env.AI_GATEWAY_API_KEY ? true : false
     }
   })
 }

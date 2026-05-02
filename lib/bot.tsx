@@ -23,16 +23,29 @@ import {
 import { ingestKnowledgeForAdvisor } from "./knowledge/scraper"
 import { generateAdvisorResponse, recordAdvisorInteraction } from "./agent/advisor-agent"
 function redisUrlForChatState(): string | null {
+  // Check for direct Redis URL first
   const direct = process.env.REDIS_URL
   if (direct) return direct
 
+  // Check for Upstash Redis URL format
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (upstashUrl && upstashToken) {
+    try {
+      const u = new URL(upstashUrl)
+      return `rediss://default:${encodeURIComponent(upstashToken)}@${u.hostname}:6379`
+    } catch (error) {
+      console.warn('Invalid Upstash Redis URL:', error)
+    }
+  }
+
+  // Fallback to old format
   const restOrTcp = process.env.KV_REST_API_URL
   const token = process.env.KV_REST_API_TOKEN
-  if (!restOrTcp) return null
+  if (!restOrTcp || !token) return null
   if (restOrTcp.startsWith("redis://") || restOrTcp.startsWith("rediss://")) {
     return restOrTcp
   }
-  if (!token) return null
   try {
     const u = new URL(restOrTcp)
     if (u.hostname.includes("upstash.io")) {
@@ -45,25 +58,20 @@ function redisUrlForChatState(): string | null {
 }
 
 function createState() {
-  // Temporarily use memory state for faster responses
-  // TODO: Re-enable Redis once timeout issue is resolved
-  console.log('Using memory state for fast responses')
-  return createMemoryState()
+  const url = redisUrlForChatState()
+  console.log('Redis URL for chat state:', url ? 'configured' : 'not found')
   
-  // const url = redisUrlForChatState()
-  // if (url) {
-  //   try {
-  //     return createRedisState({ 
-  //       url,
-  //       connectTimeout: 5000, // 5 second timeout
-  //       commandTimeout: 3000  // 3 second command timeout
-  //     })
-  //   } catch (error) {
-  //     console.warn('Failed to create Redis state, falling back to memory:', error)
-  //   }
-  // }
-  // console.log('Using memory state (Redis not configured)')
-  // return createMemoryState()
+  if (url) {
+    try {
+      console.log('Creating Redis state with URL')
+      return createRedisState({ url })
+    } catch (error) {
+      console.warn('Failed to create Redis state, falling back to memory:', error)
+    }
+  }
+  
+  console.log('Using memory state as fallback')
+  return createMemoryState()
 }
 
 const slackEnvReady =
