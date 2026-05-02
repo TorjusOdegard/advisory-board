@@ -61,6 +61,74 @@ export function summarizeIncomingPayload(payload: unknown): {
   }
 }
 
+/**
+ * Slack sends JSON for Events API + URL verification, but slash commands and
+ * some interactions are `application/x-www-form-urlencoded`. Parse a clone so
+ * the original Request body is still available for signature verification.
+ */
+export async function summarizeIncomingRequest(request: Request): Promise<{
+  summary: ReturnType<typeof summarizeIncomingPayload>
+  jsonBody: unknown | null
+}> {
+  const clone = request.clone()
+  const ct = (clone.headers.get("content-type") || "").toLowerCase()
+
+  if (ct.includes("application/json")) {
+    try {
+      const jsonBody = await clone.json()
+      return {
+        jsonBody,
+        summary: summarizeIncomingPayload(jsonBody),
+      }
+    } catch {
+      return { jsonBody: null, summary: {} }
+    }
+  }
+
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    try {
+      const raw = await clone.text()
+      const params = new URLSearchParams(raw)
+      const command = params.get("command") ?? undefined
+      const textField = params.get("text") ?? undefined
+      const type = params.get("type") ?? undefined
+      const triggerId = params.get("trigger_id")
+      return {
+        jsonBody: null,
+        summary: {
+          eventType: type ?? (triggerId ? "slash_or_interaction" : undefined),
+          command,
+          textPreview: textField ? trimPreview(textField) : undefined,
+        },
+      }
+    } catch {
+      return { jsonBody: null, summary: {} }
+    }
+  }
+
+  if (ct.includes("multipart/form-data")) {
+    try {
+      const fd = await clone.formData()
+      const command = fd.get("command")
+      const textField = fd.get("text")
+      const type = fd.get("type")
+      return {
+        jsonBody: null,
+        summary: {
+          eventType: typeof type === "string" ? type : undefined,
+          command: typeof command === "string" ? command : undefined,
+          textPreview:
+            typeof textField === "string" ? trimPreview(textField) : undefined,
+        },
+      }
+    } catch {
+      return { jsonBody: null, summary: {} }
+    }
+  }
+
+  return { jsonBody: null, summary: {} }
+}
+
 export function listChatLogEntries(limit = 50): ChatLogEntry[] {
   return entries.slice(0, Math.max(1, Math.min(limit, MAX_LOG_ENTRIES)))
 }

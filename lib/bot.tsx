@@ -139,6 +139,23 @@ bot.onSlashCommand("/board", async (event) => {
         return
       }
 
+      const slug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "")
+        .slice(0, 30)
+      const existing = await getAdvisor(slug)
+      if (existing) {
+        await event.reply(
+          <Card title="Advisor already exists">
+            <CardText>
+              {existing.name} is already on the board (id: `{existing.id}`).{"\n"}
+              Use `/board ask {existing.id} "question"` or add someone else.
+            </CardText>
+          </Card>
+        )
+        return
+      }
+
       await event.reply(
         <Card title="Creating Advisor...">
           <CardText>

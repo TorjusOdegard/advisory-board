@@ -37,6 +37,15 @@ interface ChatLogEntry {
   detail?: string
 }
 
+interface StorageHealth {
+  advisorStore: "redis" | "memory"
+  kvConfigured: boolean
+  kvHost: string | null
+  hasKvToken: boolean
+  redisPing: { ok: boolean; error?: string } | null
+  hint?: string
+}
+
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 function StatCard({
@@ -347,6 +356,9 @@ export default function DashboardPage() {
   const { data: logData } = useSWR<{ entries: ChatLogEntry[] }>("/api/chat-log?limit=25", fetcher, {
     refreshInterval: 3000,
   })
+  const { data: storageHealth } = useSWR<StorageHealth>("/api/storage-health", fetcher, {
+    refreshInterval: 8000,
+  })
   const advisors = data?.advisors || []
   const logEntries = logData?.entries || []
   const isLoading = !data && !error
@@ -394,9 +406,23 @@ export default function DashboardPage() {
           />
           <StatCard
             icon={MessageSquare}
-            label="Endpoint"
-            value="Active"
-            description="/api/webhooks/slack"
+            label="Advisor storage"
+            value={
+              !storageHealth
+                ? "…"
+                : storageHealth.advisorStore === "redis"
+                  ? "Redis"
+                  : "Memory"
+            }
+            description={
+              !storageHealth
+                ? "Loading storage mode"
+                : storageHealth.advisorStore === "redis"
+                  ? storageHealth.redisPing?.ok === false
+                    ? `Redis error: ${storageHealth.redisPing.error ?? "?"}`
+                    : "Upstash (shared across Slack + web)"
+                  : "Set KV on Vercel — Slack may not match this UI"
+            }
           />
         </div>
 
@@ -458,6 +484,11 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">Webhook / Chat Log</CardTitle>
                 <CardDescription>
                   Recent inbound events from Slack/Discord to this deployment
+                  {storageHealth?.advisorStore === "memory" && storageHealth.hint ? (
+                    <span className="mt-2 block text-amber-600 dark:text-amber-400">
+                      {storageHealth.hint}
+                    </span>
+                  ) : null}
                 </CardDescription>
               </CardHeader>
               <CardContent>

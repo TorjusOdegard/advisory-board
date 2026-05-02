@@ -3,10 +3,36 @@ import type { Advisor, AdvisorCreateInput } from "./types"
 
 const ADVISORS_KEY = "advisory-board:advisors"
 
-function kvConfigured(): boolean {
-  return Boolean(
-    process.env.KV_REST_API_URL?.trim() && process.env.KV_REST_API_TOKEN?.trim()
-  )
+function normalizeKvUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Upstash Redis REST: https://<name>-<id>.upstash.io with bearer token.
+ * Placeholder hosts (e.g. global.upstash.io) or missing token → memory mode.
+ */
+export function kvConfigured(): boolean {
+  const rawUrl = process.env.KV_REST_API_URL?.trim()
+  const token = process.env.KV_REST_API_TOKEN?.trim()
+  if (!rawUrl || !token) return false
+
+  const url = normalizeKvUrl(rawUrl)
+  if (!url) return false
+
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host === "global.upstash.io") return false
+    if (!host.endsWith(".upstash.io")) return false
+  } catch {
+    return false
+  }
+
+  return true
 }
 
 let redis: Redis | null = null
@@ -14,8 +40,8 @@ function getRedis(): Redis | null {
   if (!kvConfigured()) return null
   if (!redis) {
     redis = new Redis({
-      url: process.env.KV_REST_API_URL!,
-      token: process.env.KV_REST_API_TOKEN!,
+      url: process.env.KV_REST_API_URL!.trim(),
+      token: process.env.KV_REST_API_TOKEN!.trim(),
     })
   }
   return redis
@@ -28,9 +54,40 @@ let loggedMemoryFallback = false
 function ensureMemoryModeLogged() {
   if (!loggedMemoryFallback && !kvConfigured()) {
     loggedMemoryFallback = true
-    console.warn(
-      "[advisors/store] KV_REST_API_URL / KV_REST_API_TOKEN not set — using in-memory advisor storage (data resets between cold starts). Set Upstash keys on Vercel for persistence."
-    )
+    const url = process.env.KV_REST_API_URL?.trim()
+    const hasToken = Boolean(process.env.KV_REST_API_TOKEN?.trim())
+    let reason = "KV_REST_API_URL and KV_REST_API_TOKEN must both be set to your Upstash Redis REST credentials."
+    if (url?.includes("global.upstash.io")) {
+      reason =
+        "KV_REST_API_URL looks like a placeholder (global.upstash.io). Use the REST URL from your Upstash database page (https://….upstash.io)."
+    } else if (url && !hasToken) {
+      reason = "KV_REST_API_TOKEN is missing — Upstash will not receive writes."
+    }
+    console.warn(`[advisors/store] Using in-memory advisor storage. ${reason}`)
+  }
+}
+
+export type AdvisorStorageMode = "redis" | "memory"
+
+export function getAdvisorStorageMode(): AdvisorStorageMode {
+  return kvConfigured() ? "redis" : "memory"
+}
+
+export async function pingAdvisorRedis(): Promise<{
+  ok: boolean
+  error?: string
+}> {
+  if (!kvConfigured()) return { ok: false, error: "Redis not configured" }
+  const r = getRedis()
+  if (!r) return { ok: false, error: "Redis client unavailable" }
+  try {
+    await r.hget(ADVISORS_KEY, "__ping__")
+    return { ok: true }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Redis request failed",
+    }
   }
 }
 
