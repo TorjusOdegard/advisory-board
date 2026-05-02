@@ -45,15 +45,25 @@ function redisUrlForChatState(): string | null {
 }
 
 function createState() {
-  const url = redisUrlForChatState()
-  if (url) {
-    try {
-      return createRedisState({ url })
-    } catch (error) {
-      console.warn('Failed to create Redis state, falling back to memory:', error)
-    }
-  }
+  // Temporarily use memory state for faster responses
+  // TODO: Re-enable Redis once timeout issue is resolved
+  console.log('Using memory state for fast responses')
   return createMemoryState()
+  
+  // const url = redisUrlForChatState()
+  // if (url) {
+  //   try {
+  //     return createRedisState({ 
+  //       url,
+  //       connectTimeout: 5000, // 5 second timeout
+  //       commandTimeout: 3000  // 3 second command timeout
+  //     })
+  //   } catch (error) {
+  //     console.warn('Failed to create Redis state, falling back to memory:', error)
+  //   }
+  // }
+  // console.log('Using memory state (Redis not configured)')
+  // return createMemoryState()
 }
 
 const slackEnvReady =
@@ -64,29 +74,40 @@ const discordEnvReady =
   Boolean(process.env.DISCORD_BOT_TOKEN) &&
   Boolean(process.env.DISCORD_PUBLIC_KEY)
 
-export const bot = new Chat({
-  userName: "advisoryboard",
-  adapters: {
-    ...(slackEnvReady
-      ? {
-          slack: createSlackAdapter({
-            botToken: process.env.SLACK_BOT_TOKEN!,
-            signingSecret: process.env.SLACK_SIGNING_SECRET!,
-          }),
-        }
-      : {}),
-    ...(discordEnvReady
-      ? {
-          discord: createDiscordAdapter({
-            botToken: process.env.DISCORD_BOT_TOKEN,
-            publicKey: process.env.DISCORD_PUBLIC_KEY,
-            applicationId: process.env.DISCORD_APPLICATION_ID,
-          }),
-        }
-      : {}),
-  },
-  state: createState(),
-})
+// Create bot with error handling
+let bot: Chat
+try {
+  console.log('Creating chat bot with Slack env ready:', slackEnvReady)
+  bot = new Chat({
+    userName: "advisoryboard",
+    adapters: {
+      ...(slackEnvReady
+        ? {
+            slack: createSlackAdapter({
+              botToken: process.env.SLACK_BOT_TOKEN!,
+              signingSecret: process.env.SLACK_SIGNING_SECRET!,
+            }),
+          }
+        : {}),
+      ...(discordEnvReady
+        ? {
+            discord: createDiscordAdapter({
+              botToken: process.env.DISCORD_BOT_TOKEN,
+              publicKey: process.env.DISCORD_PUBLIC_KEY,
+              applicationId: process.env.DISCORD_APPLICATION_ID,
+            }),
+          }
+        : {}),
+    },
+    state: createState(),
+  })
+  console.log('Chat bot created successfully')
+} catch (error) {
+  console.error('Failed to create chat bot:', error)
+  throw error
+}
+
+export { bot }
 
 // Parse slash command arguments
 function parseCommand(text: string): { action: string; args: string[] } {
