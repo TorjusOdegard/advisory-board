@@ -1,3 +1,4 @@
+/** @jsxImportSource chat */
 import {
   Chat,
   Card,
