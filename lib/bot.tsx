@@ -18,8 +18,8 @@ import {
   deleteAdvisor,
 } from "./advisors/store"
 import { ingestKnowledgeForAdvisor } from "./knowledge/scraper"
-import { deleteAdvisorKnowledge } from "./knowledge/vector-store"
-import { generateAdvisorResponse } from "./agent/advisor-agent"
+import { generateAdvisorResponse, recordAdvisorInteraction } from "./agent/advisor-agent"
+import { reflectOnSession } from "./knowledge/mubit-store"
 
 export const bot = new Chat({
   userName: "advisoryboard",
@@ -367,7 +367,7 @@ bot.onAction(/^confirm-remove:/, async (event) => {
     return
   }
 
-  await deleteAdvisorKnowledge(advisorId)
+  // Note: Mubit memories persist - we're just removing from our advisor registry
   await deleteAdvisor(advisorId)
 
   await event.thread.post(

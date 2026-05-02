@@ -283,8 +283,8 @@ function SetupGuide() {
                   <span className="text-foreground">https://...</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">UPSTASH_VECTOR_REST_URL=</span>
-                  <span className="text-foreground">https://...</span>
+                  <span className="text-muted-foreground">MUBIT_API_KEY=</span>
+                  <span className="text-foreground">mbt_...</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">BRIGHTDATA_API_KEY=</span>

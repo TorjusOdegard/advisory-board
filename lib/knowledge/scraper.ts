@@ -1,4 +1,4 @@
-import { chunkText, storeKnowledge } from "./vector-store"
+import { chunkText, storeKnowledge } from "./mubit-store"
 import { addKnowledgeSource } from "../advisors/store"
 
 const BRIGHTDATA_API_URL = "https://api.brightdata.com/mcp"
