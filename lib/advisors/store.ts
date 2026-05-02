@@ -17,8 +17,9 @@ function normalizeKvUrl(url: string): string | null {
  * Placeholder hosts (e.g. global.upstash.io) or missing token → memory mode.
  */
 export function kvConfigured(): boolean {
-  const rawUrl = process.env.KV_REST_API_URL?.trim()
-  const token = process.env.KV_REST_API_TOKEN?.trim()
+  // Check for Upstash Redis credentials first, then fall back to old format
+  const rawUrl = (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL)?.trim()
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)?.trim()
   if (!rawUrl || !token) return false
 
   const url = normalizeKvUrl(rawUrl)
@@ -39,10 +40,9 @@ let redis: Redis | null = null
 function getRedis(): Redis | null {
   if (!kvConfigured()) return null
   if (!redis) {
-    redis = new Redis({
-      url: process.env.KV_REST_API_URL!.trim(),
-      token: process.env.KV_REST_API_TOKEN!.trim(),
-    })
+    const url = (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL)!.trim()
+    const token = (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)!.trim()
+    redis = new Redis({ url, token })
   }
   return redis
 }
@@ -54,14 +54,14 @@ let loggedMemoryFallback = false
 function ensureMemoryModeLogged() {
   if (!loggedMemoryFallback && !kvConfigured()) {
     loggedMemoryFallback = true
-    const url = process.env.KV_REST_API_URL?.trim()
-    const hasToken = Boolean(process.env.KV_REST_API_TOKEN?.trim())
-    let reason = "KV_REST_API_URL and KV_REST_API_TOKEN must both be set to your Upstash Redis REST credentials."
+    const url = (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL)?.trim()
+    const hasToken = Boolean((process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)?.trim())
+    let reason = "UPSTASH_REDIS_REST_URL/KV_REST_API_URL and UPSTASH_REDIS_REST_TOKEN/KV_REST_API_TOKEN must both be set to your Upstash Redis REST credentials."
     if (url?.includes("global.upstash.io")) {
       reason =
-        "KV_REST_API_URL looks like a placeholder (global.upstash.io). Use the REST URL from your Upstash database page (https://….upstash.io)."
+        "Redis URL looks like a placeholder (global.upstash.io). Use the REST URL from your Upstash database page (https://….upstash.io)."
     } else if (url && !hasToken) {
-      reason = "KV_REST_API_TOKEN is missing — Upstash will not receive writes."
+      reason = "Redis token is missing — Upstash will not receive writes."
     }
     console.warn(`[advisors/store] Using in-memory advisor storage. ${reason}`)
   }
