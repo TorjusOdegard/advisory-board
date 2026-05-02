@@ -16,15 +16,17 @@ interface DiscoverResult {
   urls: string[]
 }
 
-async function callBrightDataMCP(tool: string, params: Record<string, unknown>): Promise<any> {
+async function callBrightDataMCP(method: string, params: Record<string, unknown>): Promise<any> {
   const response = await fetch(BRIGHTDATA_MCP_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      tool,
+      jsonrpc: "2.0",
+      method: `tools/${method}`,
       params,
+      id: Date.now(),
     }),
   })
 
@@ -33,7 +35,13 @@ async function callBrightDataMCP(tool: string, params: Record<string, unknown>):
     throw new Error(`Brightdata MCP error (${response.status}): ${errorText}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  
+  if (data.error) {
+    throw new Error(`Brightdata MCP error: ${data.error.message}`)
+  }
+
+  return data.result
 }
 
 export async function scrapeUrl(url: string): Promise<ScrapeResult> {
