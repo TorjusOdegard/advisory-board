@@ -125,9 +125,13 @@ export async function createAdvisor(input: AdvisorCreateInput): Promise<Advisor>
 export async function getAdvisor(id: string): Promise<Advisor | null> {
   const r = getRedis()
   if (r) {
-    const data = await r.hget<string>(ADVISORS_KEY, id)
+    const data = await r.hget(ADVISORS_KEY, id)
     if (!data) return null
-    return JSON.parse(data) as Advisor
+    // Handle both string and already-parsed object formats
+    if (typeof data === 'string') {
+      return JSON.parse(data) as Advisor
+    }
+    return data as Advisor
   }
   ensureMemoryModeLogged()
   return memoryById.get(id) ?? null
@@ -138,7 +142,14 @@ export async function listAdvisors(): Promise<Advisor[]> {
   if (r) {
     const data = await r.hgetall<Record<string, string>>(ADVISORS_KEY)
     if (!data) return []
-    return Object.values(data).map((json) => JSON.parse(json) as Advisor)
+    return Object.values(data).map((value) => {
+      // Handle both string and already-parsed object formats
+      if (typeof value === 'string') {
+        return JSON.parse(value) as Advisor
+      }
+      // If it's already an object, return it directly
+      return value as Advisor
+    })
   }
   ensureMemoryModeLogged()
   return Array.from(memoryById.values())
