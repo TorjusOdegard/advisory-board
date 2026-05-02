@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
-import { listAdvisors, createAdvisor, getAdvisor, deleteAdvisor } from "@/lib/advisors/store"
+import {
+  listAdvisors,
+  createAdvisor,
+  getAdvisor,
+  deleteAdvisor,
+} from "@/lib/advisors/store"
 import { ingestKnowledgeForAdvisor } from "@/lib/knowledge/scraper"
 
 export async function GET() {
