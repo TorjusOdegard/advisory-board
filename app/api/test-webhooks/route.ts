@@ -9,7 +9,14 @@ export async function GET() {
       slackToken: !!process.env.SLACK_BOT_TOKEN,
       slackSecret: !!process.env.SLACK_SIGNING_SECRET,
       redisUrl: !!process.env.KV_REST_API_URL,
-      redisToken: !!process.env.KV_REST_API_TOKEN
+      redisToken: !!process.env.KV_REST_API_TOKEN,
+      aiGatewayKey: !!process.env.AI_GATEWAY_API_KEY,
+      aiGatewayModel: !!process.env.AI_GATEWAY_MODEL
+    },
+    envValues: {
+      slackTokenPrefix: process.env.SLACK_BOT_TOKEN?.slice(0, 10) + "...",
+      redisUrl: process.env.KV_REST_API_URL,
+      aiModel: process.env.AI_GATEWAY_MODEL
     }
   })
 }
